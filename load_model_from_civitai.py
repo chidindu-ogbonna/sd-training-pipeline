@@ -4,11 +4,12 @@ model w/ id 4823 => realistic-vision-v12
 
 python load_model_from_civitai.py \
     --civitai_model_id 4823 \
-    --config_file_path "chttps://raw.githubusercontent.com/runwayml/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml" \
+    --config_file_path "https://raw.githubusercontent.com/runwayml/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml" \
     --save_to_path True
 """
 
 import argparse
+
 from utils.civitai import load_model_from_civitai
 
 if __name__ == "__main__":

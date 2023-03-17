@@ -138,6 +138,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    print("Args parsed")
+
     if args.with_prior_preservation:
         train_batch_size = 1
     else:

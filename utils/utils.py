@@ -1,10 +1,17 @@
 import requests
 from tqdm import tqdm
-from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
+
+try:
     # TODO: Sometimes you should use "load_pipeline_from_original_stable_diffusion_ckpt"
     # instead of "download_from_original_stable_diffusion_ckpt"
-    download_from_original_stable_diffusion_ckpt,
-)
+    from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
+        download_from_original_stable_diffusion_ckpt,
+    )
+except ImportError:
+    print('Error importing "download_from_original_stable_diffusion_ckpt".')
+    from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
+        load_pipeline_from_original_stable_diffusion_ckpt as download_from_original_stable_diffusion_ckpt,
+    )
 
 
 def download_file(url: str, filename: str):

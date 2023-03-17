@@ -20,7 +20,7 @@ def get_download_url_from_civitai(model_id: int):
     headers = {"Content-Type": "application/json"}
     response = requests.get(url, headers=headers)
     result = response.json()
-    model_name = result["namem"]
+    model_name = result["name"]
 
     model_versions = result.get("modelVersions")
     first_version = model_versions[0]
