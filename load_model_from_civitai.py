@@ -10,7 +10,12 @@ python load_model_from_civitai.py \
 
 import argparse
 
+from dotenv import load_dotenv
+
 from utils.civitai import load_model_from_civitai
+
+load_dotenv()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()

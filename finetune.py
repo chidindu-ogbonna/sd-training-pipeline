@@ -20,12 +20,12 @@ from argparse import Namespace
 
 import accelerate
 import torch
+from dotenv import load_dotenv
 
-from utils.training import (
-    generate_class_images,
-    load_model_components,
-    training_function,
-)
+from utils.training import (generate_class_images, load_model_components,
+                            training_function)
+
+load_dotenv()
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
