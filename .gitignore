@@ -510,3 +510,4 @@ artifacts
 *.safetensors
 v1-inference.yaml
 .vscode/
+test/
