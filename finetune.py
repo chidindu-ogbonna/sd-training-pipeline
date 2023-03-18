@@ -1,5 +1,6 @@
 """ Script to finetune a model.
 
+```shell
 python finetune.py \
     --project_name "my-project" \
     --model_path "" \
@@ -14,7 +15,11 @@ python finetune.py \
     --save_steps 200 \
     --train_text_encoder \
     --center_crop \
-    --requires_safety_checker
+    --requires_safety_checker \
+    --validation_prompt "" \
+    --validation_steps 10 \
+    --num_validation_images 10
+```
 """
 import argparse
 import itertools
@@ -152,6 +157,54 @@ if __name__ == "__main__":
         default=True,
         help="Whether to use the safety checker. This is required for generating the \
             class images for prior preservation.",
+    )
+    # parser.add_argument(
+    #     "--resume_from_checkpoint",
+    #     type=str,
+    #     default=None,
+    #     help='Whether training should be resumed from a previous checkpoint. \
+    #         Use a path saved by `--save_steps`, or `"latest"` to automatically \
+    #         select the last available checkpoint.',
+    # )
+    parser.add_argument(
+        "--logging_dir",
+        type=str,
+        default="logs",
+        help=(
+            "[TensorBoard](https://www.tensorflow.org/tensorboard) log directory. Will default to"
+            " *output_dir/runs/**CURRENT_DATETIME_HOSTNAME***."
+        ),
+    )
+    parser.add_argument(
+        "--report_to",
+        type=str,
+        default="tensorboard",
+        help=(
+            'The integration to report the results and logs to. Supported platforms are `"tensorboard"`'
+            ' (default), `"wandb"` and `"comet_ml"`. Use `"all"` to report to all integrations.'
+        ),
+    )
+    parser.add_argument(
+        "--validation_prompt",
+        type=str,
+        default=None,
+        help="A prompt that is used during validation to verify that the model is learning.",
+    )
+    parser.add_argument(
+        "--num_validation_images",
+        type=int,
+        default=4,
+        help="Number of images that should be generated during validation with `validation_prompt`.",
+    )
+    parser.add_argument(
+        "--validation_steps",
+        type=int,
+        default=100,
+        help=(
+            "Run validation every X steps. Validation consists of running the prompt"
+            " `args.validation_prompt` multiple times: `args.num_validation_images`"
+            " and logging the images."
+        ),
     )
     args = parser.parse_args()
     print("Arguments parsed...")

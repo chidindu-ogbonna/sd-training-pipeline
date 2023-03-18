@@ -1,9 +1,19 @@
 import os
+from pathlib import Path
+from typing import Optional
+from argparse import Namespace
 
 import huggingface_hub
 import torch
 from diffusers import StableDiffusionPipeline
-from huggingface_hub import CommitOperationAdd, HfApi, create_repo
+from huggingface_hub import (
+    CommitOperationAdd,
+    HfApi,
+    HfFolder,
+    Repository,
+    create_repo,
+    whoami,
+)
 from slugify import slugify
 
 
@@ -80,6 +90,48 @@ def save_model_to_hf_hub(
     )
     print(
         f"Your concept was saved successfully. [Click here to access it](https://huggingface.co/{repo_id})"
+    )
+
+
+def get_full_repo_name(
+    model_id: str,
+    organization: Optional[str] = None,
+    token: Optional[str] = None,
+):
+    if token is None:
+        token = HfFolder.get_token()
+    if organization is None:
+        username = whoami(token)["name"]
+        return f"{username}/{model_id}"
+    else:
+        return f"{organization}/{model_id}"
+
+
+def push_to_hub(args: Namespace):
+
+    if args.hub_model_id is None:
+        repo_name = get_full_repo_name(
+            Path(args.output_dir).name, token=args.hub_token
+        )
+    else:
+        repo_name = args.hub_model_id
+    create_repo(repo_name, exist_ok=True, token=args.hub_token)
+    repo = Repository(
+        args.output_dir,
+        clone_from=repo_name,
+        token=args.hub_token,
+    )
+
+    with open(os.path.join(args.output_dir, ".gitignore"), "w+") as gitignore:
+        if "step_*" not in gitignore:
+            gitignore.write("step_*\n")
+        if "epoch_*" not in gitignore:
+            gitignore.write("epoch_*\n")
+
+    repo.push_to_hub(
+        commit_message="End of training",
+        blocking=False,
+        auto_lfs_prune=True,
     )
 
 
