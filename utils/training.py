@@ -218,8 +218,6 @@ def log_validation(
     torch.cuda.empty_cache()
 
 
-# TODO: (Promise) Implement and test the restart from checkpoint function
-#  20:07 - 18 Mar, 2023
 def restart_from_checkpoint(
     args,
     num_update_steps_per_epoch,
@@ -449,6 +447,8 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
 
     for epoch in range(num_train_epochs):
         unet.train()
+        if args.train_text_encoder:
+            text_encoder.train()
         for step, batch in enumerate(train_dataloader):
             # Skip steps until we reach the resumed step
             if (
