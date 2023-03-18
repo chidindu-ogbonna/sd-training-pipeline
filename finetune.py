@@ -90,6 +90,15 @@ if __name__ == "__main__":
         help="The number of class images to generate.",
     )
     parser.add_argument(
+        "--train_batch_size",
+        default=2,
+        type=int,
+        required=False,
+        help="The batch size to use when training. Usually set to 1 if using prior preservation \
+            i.e with_prior_preservation is set to true. but not sure if that still \
+                applies",
+    )
+    parser.add_argument(
         "--sample_batch_size",
         default=2,
         type=int,
@@ -210,11 +219,6 @@ if __name__ == "__main__":
     print("Arguments parsed...")
 
     if args.with_prior_preservation:
-        train_batch_size = 1
-    else:
-        train_batch_size = 2
-
-    if args.with_prior_preservation:
         generate_class_images(
             model_path=args.model_path,
             class_data_root=args.class_data_root,
@@ -236,7 +240,7 @@ if __name__ == "__main__":
         learning_rate=args.learning_rate,
         max_train_steps=args.max_train_steps,
         save_steps=args.save_steps,
-        train_batch_size=train_batch_size,
+        train_batch_size=args.train_batch_size,
         gradient_accumulation_steps=2,
         max_grad_norm=1.0,
         mixed_precision="fp16",  # set to "fp16" for mixed-precision training.
