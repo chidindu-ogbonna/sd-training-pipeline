@@ -211,6 +211,10 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
         shuffle=True,
         collate_fn=collate_fn,
     )
+    print(
+        "train_dataloader created: len(train_dataloader) = ",
+        len(train_dataloader),
+    )
 
     lr_scheduler = get_scheduler(
         args.lr_scheduler,
