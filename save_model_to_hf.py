@@ -21,7 +21,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_path",
         default=None,
-        type=int,
+        type=str,
         required=True,
         help="The path to the model to load. Must be a local path.",
     )
