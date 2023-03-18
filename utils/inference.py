@@ -4,38 +4,55 @@ from typing import List, Optional, Union
 import huggingface_hub
 import torch
 import torch.utils.checkpoint
-from diffusers import StableDiffusionPipeline, SchedulerMixin
+from diffusers import SchedulerMixin, StableDiffusionPipeline
+from diffusers.configuration_utils import ConfigMixin
 
 from utils.images import image_grid
 
 
-def load_model(model_path: str, scheduler: Optional[SchedulerMixin]):
+def load_model(
+    model_path: str,
+    scheduler: Optional[Union[SchedulerMixin, ConfigMixin]],
+    requires_safety_checker: bool = True,
+):
     """Load model pipeline from model path.
 
     Args:
         model_path (str): Model path to load. Can be a local path or
         a huggingface model path.
         scheduler (SchedulerMixin): Scheduler to load.
+        requires_safety_checker (bool): Whether to load the safety checker.
+
+    ```py
+        >>> # Use a different scheduler
+        >>> from diffusers import LMSDiscreteScheduler
+
+        >>> scheduler = LMSDiscreteScheduler.from_config(pipeline.scheduler.config)
+        >>> # or
+        >>> scheduler = LMSDiscreteScheduler.from_pretrained(model_path, subfolder="scheduler")
+        >>> # set the scheduler
+        >>> pipeline.scheduler = scheduler
+    ```
     """
     HF_TOKEN_READ = os.environ.get("HF_TOKEN_READ")
     huggingface_hub.login(HF_TOKEN_READ)
-
-    if scheduler:
-        pipe = StableDiffusionPipeline.from_pretrained(
+    if requires_safety_checker:
+        pipeline = StableDiffusionPipeline.from_pretrained(
+            model_path, torch_dtype=torch.float16
+        ).to("cuda")
+    else:
+        # disable safety checker
+        pipeline = StableDiffusionPipeline.from_pretrained(
             model_path,
             torch_dtype=torch.float16,
+            safety_checker=None,
+            requires_safety_checker=False,
         ).to("cuda")
 
-        # TODO: This could work also
-        # pipe.scheduler = scheduler.from_pretrained(
-        #     model_path, subfolder="scheduler"
-        # )
-        pipe.scheduler = scheduler.from_config(pipe.scheduler.config)
-    else:
-        pipe = StableDiffusionPipeline.from_pretrained(
-            model_path, torch_dtype=torch.float16
-        )
-    return pipe
+    if scheduler:
+        pipeline.scheduler = scheduler.from_config(pipeline.scheduler.config)
+
+    return pipeline
 
 
 def infer(
@@ -62,7 +79,7 @@ def infer(
 
     # torch.cuda.empty_cache()
     grid = image_grid(all_images, num_rows, num_images_per_prompt)
-    grid
+    return grid
 
 
 if __name__ == "__main__":
@@ -75,7 +92,7 @@ if __name__ == "__main__":
     negative_prompt = None
 
     pipeline = load_model(model_path, scheduler=None)
-    infer(
+    grid = infer(
         pipeline,
         prompt,
         num_samples,
@@ -84,3 +101,4 @@ if __name__ == "__main__":
         num_rows,
         negative_prompt=negative_prompt,
     )
+    grid

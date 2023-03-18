@@ -5,7 +5,6 @@ import os
 from argparse import Namespace
 from pathlib import Path
 
-import accelerate
 import bitsandbytes as bnb
 import torch
 import torch.nn.functional as F
@@ -32,6 +31,7 @@ def generate_class_images(
     num_class_images,
     class_prompt,
     sample_batch_size,
+    requires_safety_checker=True,
 ):
     class_images_dir = Path(class_data_root)
     if not class_images_dir.exists():
@@ -39,13 +39,29 @@ def generate_class_images(
     cur_class_images = len(list(class_images_dir.iterdir()))
 
     print("Current class images: ", cur_class_images)
-    print("Has class images: ", cur_class_images == num_class_images)
+
+    class_images_exists = cur_class_images == num_class_images
+    if class_images_exists:
+        print("Class images already exist... skipping generation!")
+        return
+
     if cur_class_images < num_class_images:
-        pipeline = StableDiffusionPipeline.from_pretrained(
-            model_path,
-            revision="fp16",
-            torch_dtype=torch.float16,
-        ).to("cuda")
+        if requires_safety_checker:
+            pipeline = StableDiffusionPipeline.from_pretrained(
+                model_path,
+                revision="fp16",
+                torch_dtype=torch.float16,
+            ).to("cuda")
+        else:
+            # disable safety checker
+            pipeline = StableDiffusionPipeline.from_pretrained(
+                model_path,
+                revision="fp16",
+                torch_dtype=torch.float16,
+                safety_checker=None,
+                requires_safety_checker=False,
+            ).to("cuda")
+
         pipeline.enable_attention_slicing()
         pipeline.set_progress_bar_config(disable=True)
 
@@ -70,8 +86,8 @@ def generate_class_images(
         del pipeline
         with torch.no_grad():
             torch.cuda.empty_cache()
-    else:
-        print("No prior preservation set!")
+
+    return
 
 
 def load_model_components(model_path):

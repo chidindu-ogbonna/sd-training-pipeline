@@ -1,19 +1,20 @@
 """ Script to finetune a model.
 
 python finetune.py \
- --project_name "my-project" \
- --model_path "" \
- --instance_prompt "" \
- --instance_data_dir "" \
- --with_prior_preservation True \
- --prior_preservation_class_prompt "" \
- --num_class_images 200 \
- --sample_batch_size 2 \
- --learning_rate 2e-06 \
- --max_train_steps 400 \
- --save_steps 200 \
- --train_text_encoder False \
- --center_crop True
+    --project_name "my-project" \
+    --model_path "" \
+    --instance_prompt "" \
+    --instance_data_dir "" \
+    --with_prior_preservation True \
+    --prior_preservation_class_prompt "" \
+    --num_class_images 200 \
+    --sample_batch_size 2 \
+    --learning_rate 2e-06 \
+    --max_train_steps 400 \
+    --save_steps 200 \
+    --train_text_encoder False \
+    --center_crop True \
+    --requires_safety_checker True
 """
 import argparse
 import itertools
@@ -148,6 +149,13 @@ if __name__ == "__main__":
         required=False,
         help="Whether to center crop the images.",
     )
+    parser.add_argument(
+        "--requires_safety_checker",
+        default=True,
+        type=bool,
+        required=False,
+        help="Whether to use the safety checker.",
+    )
     args = parser.parse_args()
     print("Arguments parsed...")
 
@@ -163,6 +171,7 @@ if __name__ == "__main__":
             class_prompt=args.prior_preservation_class_prompt,
             num_class_images=args.num_class_images,
             sample_batch_size=args.sample_batch_size,
+            requires_safety_checker=args.requires_safety_checker,
         )
 
     project_name_slug = slugify(args.project_name)
