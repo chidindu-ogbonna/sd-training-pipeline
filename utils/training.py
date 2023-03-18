@@ -1,28 +1,35 @@
 import gc
 import itertools
+import logging
 import math
 import os
 from argparse import Namespace
 from pathlib import Path
 
 import bitsandbytes as bnb
+import diffusers
+import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.utils.checkpoint
+import transformers
 from accelerate import Accelerator
 from accelerate.logging import get_logger
 from accelerate.utils import set_seed
 from diffusers import (
     AutoencoderKL,
     DDPMScheduler,
+    DPMSolverMultistepScheduler,
     StableDiffusionPipeline,
     UNet2DConditionModel,
 )
 from diffusers.optimization import get_scheduler
 from tqdm.auto import tqdm
-from transformers import CLIPTextModel, CLIPTokenizer
+from transformers import AutoTokenizer, CLIPTextModel  # CLIPTokenizer
 
 from .dataset import DreamBoothDataset, PromptDataset
+
+logger = get_logger(__name__)
 
 
 def generate_class_images(
@@ -33,6 +40,10 @@ def generate_class_images(
     sample_batch_size: int,
     requires_safety_checker: bool,
 ):
+    """
+    Generate class images for finetuning.
+    Usually used if prior preservation is enabled.
+    """
     class_images_dir = Path(class_data_root)
     if not class_images_dir.exists():
         class_images_dir.mkdir(parents=True)
@@ -102,20 +113,117 @@ def load_model_components(model_path):
     )
     vae = AutoencoderKL.from_pretrained(model_path, subfolder="vae")
     unet = UNet2DConditionModel.from_pretrained(model_path, subfolder="unet")
-    tokenizer = CLIPTokenizer.from_pretrained(
+    tokenizer = AutoTokenizer.from_pretrained(
         model_path, subfolder="tokenizer"
     )
     return text_encoder, vae, unet, tokenizer
 
 
-def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
-    logger = get_logger(__name__)
+def collate_fn(examples, with_prior_preservation=False):
+    input_ids = [example["instance_prompt_ids"] for example in examples]
+    pixel_values = [example["instance_images"] for example in examples]
 
-    set_seed(args.seed)
+    # concat class and instance examples for prior preservation
+    # We do this to avoid doing two forward passes.
+    if with_prior_preservation:
+        input_ids += [example["class_prompt_ids"] for example in examples]
+        pixel_values += [example["class_images"] for example in examples]
+
+    pixel_values = torch.stack(pixel_values)
+    pixel_values = pixel_values.to(
+        memory_format=torch.contiguous_format
+    ).float()
+
+    input_ids = torch.cat(input_ids, dim=0)
+    batch = {
+        "input_ids": input_ids,
+        "pixel_values": pixel_values,
+    }
+    return batch
+
+
+def log_validation(
+    text_encoder,
+    tokenizer,
+    unet,
+    vae,
+    args,
+    accelerator,
+    weight_dtype,
+    epoch,
+):
+    logger.info(
+        f"Running validation... \n Generating {args.num_validation_images} images with \
+        prompt: {args.validation_prompt}."
+    )
+    # create pipeline (note: unet and vae are loaded again in float32)
+    pipeline = StableDiffusionPipeline().from_pretrained(
+        args.pretrained_model_name_or_path,
+        text_encoder=accelerator.unwrap_model(text_encoder),
+        tokenizer=tokenizer,
+        unet=accelerator.unwrap_model(unet),
+        vae=vae,
+        revision=args.revision,
+        torch_dtype=weight_dtype,
+    )
+    pipeline.scheduler = DPMSolverMultistepScheduler.from_config(
+        pipeline.scheduler.config
+    )
+    pipeline = pipeline.to(accelerator.device)
+    pipeline.set_progress_bar_config(disable=True)
+
+    # run inference
+    generator = (
+        None
+        if args.seed is None
+        else torch.Generator(device=accelerator.device).manual_seed(args.seed)
+    )
+    images = []
+    for _ in range(args.num_validation_images):
+        with torch.autocast("cuda"):
+            image = pipeline(
+                args.validation_prompt,
+                num_inference_steps=25,
+                generator=generator,
+            ).images[0]
+        images.append(image)
+
+    for tracker in accelerator.trackers:
+        if tracker.name == "tensorboard":
+            np_images = np.stack([np.asarray(img) for img in images])
+            tracker.writer.add_images(
+                "validation", np_images, epoch, dataformats="NHWC"
+            )
+        else:
+            print("No tracker found!")
+        # if tracker.name == "wandb":
+        #     tracker.log(
+        #         {
+        #             "validation": [
+        #                 wandb.Image(
+        #                     image, caption=f"{i}: {args.validation_prompt}"
+        #                 )
+        #                 for i, image in enumerate(images)
+        #             ]
+        #         }
+        #     )
+
+    del pipeline
+    torch.cuda.empty_cache()
+
+
+def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
+
+    logging_dir = Path(args.output_dir, args.logging_dir)
+
+    if args.seed is not None:
+        set_seed(args.seed)
 
     accelerator = Accelerator(
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         mixed_precision=args.mixed_precision,
+        log_with=args.report_to,
+        logging_dir=logging_dir,
     )
 
     # Currently, it's not possible to do gradient accumulation when training two models
@@ -135,6 +243,20 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
             "Please set gradient_accumulation_steps to 1. This feature will be \
                 supported in the future."
         )
+
+    # Make one log on every process with the configuration for debugging.
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s - %(message)s",
+        datefmt="%m/%d/%Y %H:%M:%S",
+        level=logging.INFO,
+    )
+    logger.info(accelerator.state, main_process_only=False)
+    if accelerator.is_local_main_process:
+        transformers.utils.logging.set_verbosity_warning()
+        diffusers.utils.logging.set_verbosity_info()
+    else:
+        transformers.utils.logging.set_verbosity_error()
+        diffusers.utils.logging.set_verbosity_error()
 
     vae.requires_grad_(False)
     if not args.train_text_encoder:
@@ -178,42 +300,13 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
         center_crop=args.center_crop,
     )
 
-    def collate_fn(examples):
-        input_ids = [example["instance_prompt_ids"] for example in examples]
-        pixel_values = [example["instance_images"] for example in examples]
-
-        # concat class and instance examples for prior preservation
-        if args.with_prior_preservation:
-            input_ids += [example["class_prompt_ids"] for example in examples]
-            pixel_values += [example["class_images"] for example in examples]
-
-        pixel_values = torch.stack(pixel_values)
-        pixel_values = pixel_values.to(
-            memory_format=torch.contiguous_format
-        ).float()
-
-        input_ids = tokenizer.pad(
-            {"input_ids": input_ids},
-            padding="max_length",
-            return_tensors="pt",
-            max_length=tokenizer.model_max_length,
-        ).input_ids
-
-        batch = {
-            "input_ids": input_ids,
-            "pixel_values": pixel_values,
-        }
-        return batch
-
     train_dataloader = torch.utils.data.DataLoader(
         train_dataset,
         batch_size=args.train_batch_size,
         shuffle=True,
-        collate_fn=collate_fn,
-    )
-    print(
-        "train_dataloader created: len(train_dataloader) = ",
-        len(train_dataloader),
+        collate_fn=lambda examples: collate_fn(
+            examples, args.with_prior_preservation
+        ),
     )
 
     lr_scheduler = get_scheduler(
@@ -251,7 +344,8 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
     # half-precision as these models are only used for inference, keeping weights in
     # full precision is not required.
     vae.to(accelerator.device, dtype=weight_dtype)
-    vae.decoder.to("cpu")
+    # TODO: (Promise) Disable this for now 17:31 - 18 Mar, 2023
+    # vae.decoder.to("cpu")
     if not args.train_text_encoder:
         text_encoder.to(accelerator.device, dtype=weight_dtype)
 
@@ -271,18 +365,19 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
         * args.gradient_accumulation_steps
     )
 
-    logger.info("***** Running training *****")
-    logger.info(f"  Num examples = {len(train_dataset)}")
-    logger.info(
-        f"  Instantaneous batch size per device = {args.train_batch_size}"
+    print("***** Running training *****")
+    print(f"  Num of examples = {len(train_dataset)}")
+    print(f"  Length of dataloader: {len(train_dataloader)}")
+    print(f"  Num of training epochs: {num_train_epochs}")
+    print(f"  Instantaneous batch size per device = {args.train_batch_size}")
+    print(
+        f"  Total train batch size (w. parallel, distributed & accumulation) = \
+            {total_batch_size}"
     )
-    logger.info(
-        f"  Total train batch size (w. parallel, distributed & accumulation) = {total_batch_size}"
-    )
-    logger.info(
+    print(
         f"  Gradient Accumulation steps = {args.gradient_accumulation_steps}"
     )
-    logger.info(f"  Total optimization steps = {args.max_train_steps}")
+    print(f"  Total optimization steps = {args.max_train_steps}")
     # Only show the progress bar once on each machine.
     progress_bar = tqdm(
         range(args.max_train_steps),
@@ -387,8 +482,8 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
                 progress_bar.update(1)
                 global_step += 1
 
-                if global_step % args.save_steps == 0:
-                    if accelerator.is_main_process:
+                if accelerator.is_main_process:
+                    if global_step % args.save_steps == 0:
                         pipeline = StableDiffusionPipeline.from_pretrained(
                             args.pretrained_model_name_or_path,
                             unet=accelerator.unwrap_model(unet),
@@ -401,15 +496,36 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
                         )
                         pipeline.save_pretrained(save_path)
 
-            logs = {"loss": loss.detach().item()}
+                    if (
+                        args.validation_prompt is not None
+                        and global_step % args.validation_steps == 0
+                    ):
+                        log_validation(
+                            text_encoder,
+                            tokenizer,
+                            unet,
+                            vae,
+                            args,
+                            accelerator,
+                            weight_dtype,
+                            epoch,
+                        )
+
+            logs = {
+                "loss": loss.detach().item(),
+                "lr": lr_scheduler.get_last_lr()[0],
+            }
             progress_bar.set_postfix(**logs)
+            accelerator.log(logs, step=global_step)
 
             if global_step >= args.max_train_steps:
+                print(
+                    f"Reached global step at {global_step}, exiting epoch {epoch}..."
+                )
                 break
 
-        accelerator.wait_for_everyone()
-
     # Create the pipeline using using the trained modules and save it.
+    accelerator.wait_for_everyone()
     if accelerator.is_main_process:
         pipeline = StableDiffusionPipeline.from_pretrained(
             args.pretrained_model_name_or_path,
@@ -417,3 +533,5 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
             text_encoder=accelerator.unwrap_model(text_encoder),
         )
         pipeline.save_pretrained(args.output_dir)
+
+    accelerator.end_training()
