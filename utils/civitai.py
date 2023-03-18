@@ -3,13 +3,14 @@ import os
 import requests
 from slugify import slugify
 
-from .utils import download_file, load_model_from_checkpoint
+from .utils import load_model_from_checkpoint
+from transformers.utils.hub import download_url
 
 
 def download_model_from_civitai(model_id: int):
     url, filename, model_name = get_download_url_from_civitai(model_id)
     print(f"Downloading file {url}...")
-    filename = download_file(url, filename)
+    filename = download_url(url)
     return filename, model_name
 
 

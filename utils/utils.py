@@ -19,7 +19,7 @@ except ImportError:
 
 
 def download_file(url: str, filename: str):
-    """Download file from url."""
+    """Deprecated in favour of [`transformers.utils.hub.download_url`]."""
     with requests.get(url, stream=True) as r:
         with open(filename, "wb") as f:
             # XXX: Couldn't figure out how to wrap tqdm around this.
