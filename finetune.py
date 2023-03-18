@@ -168,14 +168,16 @@ if __name__ == "__main__":
         help="Whether to use the safety checker. This is required for generating the \
             class images for prior preservation.",
     )
-    # parser.add_argument(
-    #     "--resume_from_checkpoint",
-    #     type=str,
-    #     default=None,
-    #     help='Whether training should be resumed from a previous checkpoint. \
-    #         Use a path saved by `--save_steps`, or `"latest"` to automatically \
-    #         select the last available checkpoint.',
-    # )
+    # TODO: (Promise) Implement resume_from_checkpoint functionality
+    # https://huggingface.co/docs/diffusers/v0.14.0/en/training/dreambooth#resuming-training-from-a-saved-checkpoint
+    parser.add_argument(
+        "--resume_from_checkpoint",
+        type=str,
+        default=None,
+        help='Whether training should be resumed from a previous checkpoint. \
+            Use a path saved by `--save_steps`, or `"latest"` to automatically \
+            select the last available checkpoint.',
+    )
     parser.add_argument(
         "--logging_dir",
         type=str,

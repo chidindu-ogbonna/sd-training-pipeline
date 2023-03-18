@@ -218,6 +218,46 @@ def log_validation(
     torch.cuda.empty_cache()
 
 
+# TODO: (Promise) Implement and test the restart from checkpoint function
+#  20:07 - 18 Mar, 2023
+def restart_from_checkpoint(
+    args,
+    num_update_steps_per_epoch,
+    accelerator: Accelerator,
+):
+    # TODO: (Promise) Implement and test the restart from checkpoint function
+    #  20:07 - 18 Mar, 2023
+    """Potentially load in the weights and states from a previous save"""
+
+    if args.resume_from_checkpoint != "latest":
+        path = os.path.basename(args.resume_from_checkpoint)
+    else:
+        # Get the mos recent checkpoint
+        dirs = os.listdir(args.output_dir)
+        dirs = [d for d in dirs if d.startswith("checkpoint")]
+        dirs = sorted(dirs, key=lambda x: int(x.split("-")[1]))
+        path = dirs[-1] if len(dirs) > 0 else None
+
+    if path is None:
+        accelerator.print(
+            f"Checkpoint '{args.resume_from_checkpoint}' does not exist. Starting a new \
+                training run."
+        )
+        args.resume_from_checkpoint = None
+        return None
+    else:
+        accelerator.print(f"Resuming from checkpoint {path}")
+        accelerator.load_state(os.path.join(args.output_dir, path))
+        global_step = int(path.split("-")[1])
+
+        resume_global_step = global_step * args.gradient_accumulation_steps
+        first_epoch = global_step // num_update_steps_per_epoch
+        resume_step = resume_global_step % (
+            num_update_steps_per_epoch * args.gradient_accumulation_steps
+        )
+        return first_epoch, resume_step
+
+
 def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
 
     logging_dir = Path(args.output_dir, args.logging_dir)
@@ -391,10 +431,35 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
     )
     progress_bar.set_description("Steps")
     global_step = 0
+    first_epoch = 0
+    resume_step = 0
+
+    if args.resume_from_checkpoint:
+        result = restart_from_checkpoint(
+            args,
+            num_update_steps_per_epoch=num_update_steps_per_epoch,
+            accelerator=accelerator,
+        )
+        if result:
+            first_epoch, resume_step = result
+            print(
+                f"Resuming from checkpoint {args.restart_from_checkpoint} epoch \
+                    {first_epoch} step {resume_step}..."
+            )
 
     for epoch in range(num_train_epochs):
         unet.train()
         for step, batch in enumerate(train_dataloader):
+            # Skip steps until we reach the resumed step
+            if (
+                args.resume_from_checkpoint
+                and epoch == first_epoch
+                and step < resume_step
+            ):
+                if step % args.gradient_accumulation_steps == 0:
+                    progress_bar.update(1)
+                continue
+
             with accelerator.accumulate(unet):
                 # Convert images to latent space
                 latents = vae.encode(
