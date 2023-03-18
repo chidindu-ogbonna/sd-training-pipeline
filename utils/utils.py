@@ -2,13 +2,17 @@ import requests
 from tqdm import tqdm
 
 try:
-    # TODO: Sometimes you should use "load_pipeline_from_original_stable_diffusion_ckpt"
+    # XXX: Depending on the version of the diffusers used (not sure which one :))
+    # you should use "load_pipeline_from_original_stable_diffusion_ckpt"
     # instead of "download_from_original_stable_diffusion_ckpt"
     from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
         download_from_original_stable_diffusion_ckpt,
     )
 except ImportError:
-    print('Error importing "download_from_original_stable_diffusion_ckpt".')
+    print(
+        'Error importing "download_from_original_stable_diffusion_ckpt".\n \
+            Using "load_pipeline_from_original_stable_diffusion_ckpt" instead.'
+    )
     from diffusers.pipelines.stable_diffusion.convert_from_ckpt import (
         load_pipeline_from_original_stable_diffusion_ckpt as download_from_original_stable_diffusion_ckpt,
     )
@@ -18,7 +22,7 @@ def download_file(url: str, filename: str):
     """Download file from url."""
     with requests.get(url, stream=True) as r:
         with open(filename, "wb") as f:
-            # TODO: Couldn't figure out how to wrap tqdm around this.
+            # XXX: Couldn't figure out how to wrap tqdm around this.
             # shutil.copyfileobj(r.raw, f)
             chunk_size = 4096
             for chunk in tqdm(r.iter_content(chunk_size)):

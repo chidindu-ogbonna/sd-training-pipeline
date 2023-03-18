@@ -26,12 +26,12 @@ from .dataset import DreamBoothDataset, PromptDataset
 
 
 def generate_class_images(
-    model_path,
-    class_data_root,
-    num_class_images,
-    class_prompt,
-    sample_batch_size,
-    requires_safety_checker=True,
+    model_path: str,
+    class_data_root: str,
+    num_class_images: int,
+    class_prompt: str,
+    sample_batch_size: int,
+    requires_safety_checker: bool,
 ):
     class_images_dir = Path(class_data_root)
     if not class_images_dir.exists():

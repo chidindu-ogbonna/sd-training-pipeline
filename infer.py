@@ -10,7 +10,7 @@ python infer.py \
     --num_inference_steps 25 \
     --num_images_per_prompt 4 \
     --num_rows 1 \
-    --requires_safety_checker False
+    --requires_safety_checker
 ```
 """
 
@@ -28,7 +28,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model_path",
         default=None,
-        type=int,
+        type=str,
         required=True,
         help="The path to the model to load. Can be a local path or a huggingface model \
             path.",
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--requires_safety_checker",
-        type=bool,
+        action=argparse.BooleanOptionalAction,
         default=True,
         help="Whether to use the safety checker for inference.",
     )

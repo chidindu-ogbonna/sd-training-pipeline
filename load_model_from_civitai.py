@@ -5,7 +5,7 @@ model w/ id 4823 => realistic-vision-v12
 python load_model_from_civitai.py \
     --civitai_model_id 4823 \
     --config_file_path "https://raw.githubusercontent.com/runwayml/stable-diffusion/main/configs/stable-diffusion/v1-inference.yaml" \
-    --save_to_path True
+    --save_to_path
 """
 
 import argparse
@@ -35,9 +35,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--save_to_path",
+        action=argparse.BooleanOptionalAction,
         default=False,
-        type=bool,
-        required=False,
         help="Whether to save the model to a path.",
     )
     args = parser.parse_args()

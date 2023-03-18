@@ -1,0 +1,83 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "run save_model_to_hf",
+            "type": "python",
+            "request": "launch",
+            "module": "save_model_to_hf",
+            "justMyCode": true,
+            "args": [
+                "--config",
+                "config.json"
+            ]
+        },
+        {
+            "name": "run finetune",
+            "type": "python",
+            "request": "launch",
+            "module": "finetune",
+            "justMyCode": true,
+            "args": [
+                "--project_name",
+                "my-project",
+                "--model_path",
+                "model_path",
+                "--instance_prompt",
+                "promise ogbonna",
+                "--instance_data_dir",
+                "promise_ogbonna",
+                "--no-with_prior_preservation",
+                "--prior_preservation_class_prompt",
+                "class_images",
+                "--num_class_images",
+                "200",
+                "--sample_batch_size",
+                "2",
+                "--learning_rate",
+                "2e-06",
+                "--max_train_steps",
+                "400",
+                "--save_steps",
+                "200",
+                "--no-train_text_encoder",
+                "--no-center_crop",
+                "--no-requires_safety_checker",
+            ]
+        },
+        {
+            "name": "run infer",
+            "type": "python",
+            "request": "launch",
+            "module": "infer",
+            "justMyCode": true,
+            "args": [
+                "--model_path",
+                "model_path",
+                "--scheduler",
+                "scheduler",
+                "--prompt",
+                "A photo of a man",
+                "--negative_prompt",
+                "difigured, bad, ugly",
+                "--guidance_scale",
+                "9",
+                "--num_inference_steps",
+                "25",
+                "--num_images_per_prompt",
+                "4",
+                "--num_rows",
+                "1",
+                "--no-requires_safety_checker"
+            ]
+        },
+        {
+            "name": "run current file",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "justMyCode": true
+        }
+    ]
+}

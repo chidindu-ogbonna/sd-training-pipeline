@@ -5,16 +5,16 @@ python finetune.py \
     --model_path "" \
     --instance_prompt "" \
     --instance_data_dir "" \
-    --with_prior_preservation True \
+    --with_prior_preservation \
     --prior_preservation_class_prompt "" \
     --num_class_images 200 \
     --sample_batch_size 2 \
     --learning_rate 2e-06 \
     --max_train_steps 400 \
     --save_steps 200 \
-    --train_text_encoder False \
-    --center_crop True \
-    --requires_safety_checker True
+    --train_text_encoder \
+    --center_crop \
+    --requires_safety_checker
 """
 import argparse
 import itertools
@@ -66,9 +66,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--with_prior_preservation",
+        action=argparse.BooleanOptionalAction,
         default=False,
-        type=bool,
-        required=False,
         help="Whether to use prior preservation.",
     )
     parser.add_argument(
@@ -137,23 +136,20 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--train_text_encoder",
+        action=argparse.BooleanOptionalAction,
         default=False,
-        type=bool,
-        required=False,
         help="Whether to train the text encoder.",
     )
     parser.add_argument(
         "--center_crop",
+        action=argparse.BooleanOptionalAction,
         default=True,
-        type=bool,
-        required=False,
         help="Whether to center crop the images.",
     )
     parser.add_argument(
         "--requires_safety_checker",
+        action=argparse.BooleanOptionalAction,
         default=True,
-        type=bool,
-        required=False,
         help="Whether to use the safety checker. This is required for generating the \
             class images for prior preservation.",
     )
