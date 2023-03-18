@@ -9,6 +9,7 @@ python finetune.py \
     --with_prior_preservation \
     --prior_preservation_class_prompt "" \
     --num_class_images 200 \
+    --train_batch_size 2 \
     --sample_batch_size 2 \
     --learning_rate 2e-06 \
     --max_train_steps 400 \
@@ -256,6 +257,11 @@ if __name__ == "__main__":
         lr_scheduler="constant",
         lr_warmup_steps=100,
         output_dir=f"{project_name_slug}-concept",
+        logging_dir=args.logging_dir,
+        report_to=args.report_to,
+        validation_prompt=args.validation_prompt,
+        num_validation_images=args.num_validation_images,
+        validation_steps=args.validation_steps,
     )
     accelerate.notebook_launcher(
         training_function,

@@ -119,7 +119,7 @@ def load_model_components(model_path):
     return text_encoder, vae, unet, tokenizer
 
 
-def collate_fn(examples, with_prior_preservation=False):
+def collate_fn(examples, tokenizer, with_prior_preservation=False):
     input_ids = [example["instance_prompt_ids"] for example in examples]
     pixel_values = [example["instance_images"] for example in examples]
 
@@ -134,7 +134,13 @@ def collate_fn(examples, with_prior_preservation=False):
         memory_format=torch.contiguous_format
     ).float()
 
-    input_ids = torch.cat(input_ids, dim=0)
+    # input_ids = torch.cat(input_ids, dim=0)
+    input_ids = tokenizer.pad(
+        {"input_ids": input_ids},
+        padding="max_length",
+        return_tensors="pt",
+        max_length=tokenizer.model_max_length,
+    ).input_ids
     batch = {
         "input_ids": input_ids,
         "pixel_values": pixel_values,
@@ -144,11 +150,11 @@ def collate_fn(examples, with_prior_preservation=False):
 
 def log_validation(
     text_encoder,
-    tokenizer,
+    tokenizer: AutoTokenizer,
     unet,
     vae,
     args,
-    accelerator,
+    accelerator: Accelerator,
     weight_dtype,
     epoch,
 ):
@@ -305,7 +311,7 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
         batch_size=args.train_batch_size,
         shuffle=True,
         collate_fn=lambda examples: collate_fn(
-            examples, args.with_prior_preservation
+            examples, tokenizer, args.with_prior_preservation
         ),
     )
 
@@ -516,7 +522,10 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
                 "lr": lr_scheduler.get_last_lr()[0],
             }
             progress_bar.set_postfix(**logs)
-            accelerator.log(logs, step=global_step)
+            # TODO: (Promise) Configure the tracker first 18:37 - 18 Mar, 2023
+            # accelerator.init_trackers("example_project", config=config)
+            # https://huggingface.co/docs/accelerate/usage_guides/tracking#integrated-trackers
+            # accelerator.log(logs, step=global_step)
 
             if global_step >= args.max_train_steps:
                 print(
@@ -534,4 +543,5 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
         )
         pipeline.save_pretrained(args.output_dir)
 
-    accelerator.end_training()
+    # TODO: (Promise) Configure the tracker first 19:06 - 18 Mar, 2023
+    # accelerator.end_training()
