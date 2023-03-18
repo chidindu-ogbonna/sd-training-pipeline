@@ -2,28 +2,33 @@
 
 python finetune.py \
  --project_name "my-project" \
- --model_path " \
+ --model_path "" \
  --instance_prompt "" \
+ --instance_data_dir "" \
  --with_prior_preservation True \
  --prior_preservation_class_prompt "" \
  --num_class_images 200 \
  --sample_batch_size 2 \
  --learning_rate 2e-06 \
  --max_train_steps 400 \
- --save_steps 50 \
+ --save_steps 200 \
  --train_text_encoder False \
  --center_crop True
 """
 import argparse
 import itertools
 from argparse import Namespace
+from slugify import slugify
 
 import accelerate
 import torch
 from dotenv import load_dotenv
 
-from utils.training import (generate_class_images, load_model_components,
-                            training_function)
+from utils.training import (
+    generate_class_images,
+    load_model_components,
+    training_function,
+)
 
 load_dotenv()
 
@@ -50,6 +55,13 @@ if __name__ == "__main__":
         type=str,
         required=True,
         help="The prompt to use to make inference.",
+    )
+    parser.add_argument(
+        "--instance_data_dir",
+        default=None,
+        type=str,
+        required=True,
+        help="The directory containing the instance data.",
     )
     parser.add_argument(
         "--with_prior_preservation",
@@ -137,8 +149,7 @@ if __name__ == "__main__":
         help="Whether to center crop the images.",
     )
     args = parser.parse_args()
-
-    print("Args parsed")
+    print("Arguments parsed...")
 
     if args.with_prior_preservation:
         train_batch_size = 1
@@ -154,13 +165,14 @@ if __name__ == "__main__":
             sample_batch_size=args.sample_batch_size,
         )
 
+    project_name_slug = slugify(args.project_name)
     text_encoder, vae, unet, tokenizer = load_model_components(args.model_path)
     training_args = Namespace(
         pretrained_model_name_or_path=args.model_path,
         resolution=vae.sample_size,  # should be 512
         center_crop=args.center_crop,
         train_text_encoder=args.train_text_encoder,
-        instance_data_dir=args.project_name,
+        instance_data_dir=args.instance_data_dir,
         instance_prompt=args.instance_prompt,
         learning_rate=args.learning_rate,
         max_train_steps=args.max_train_steps,
@@ -180,11 +192,12 @@ if __name__ == "__main__":
         num_class_images=args.num_class_images,
         lr_scheduler="constant",
         lr_warmup_steps=100,
-        output_dir=f"{args.project_name}-concept",
+        output_dir=f"{project_name_slug}-concept",
     )
     accelerate.notebook_launcher(
         training_function,
-        args=(text_encoder, vae, unet, tokenizer, args),
+        args=(text_encoder, vae, unet, tokenizer, training_args),
+        num_processes=1,
     )
     for param in itertools.chain(unet.parameters(), text_encoder.parameters()):
         if param.grad is not None:
