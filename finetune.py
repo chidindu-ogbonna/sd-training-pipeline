@@ -154,7 +154,8 @@ if __name__ == "__main__":
         default=True,
         type=bool,
         required=False,
-        help="Whether to use the safety checker.",
+        help="Whether to use the safety checker. This is required for generating the \
+            class images for prior preservation.",
     )
     args = parser.parse_args()
     print("Arguments parsed...")
