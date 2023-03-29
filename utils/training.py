@@ -24,10 +24,12 @@ from diffusers import (
     UNet2DConditionModel,
 )
 from diffusers.optimization import get_scheduler
+from slugify import slugify
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer, CLIPTextModel  # CLIPTokenizer
 
 from .dataset import DreamBoothDataset, PromptDataset
+from .hf import save_model_to_hf_hub
 
 logger = get_logger(__name__)
 
@@ -259,6 +261,7 @@ def restart_from_checkpoint(
 def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
 
     logging_dir = Path(args.output_dir, args.logging_dir)
+    print("Training function started...")
 
     if args.seed is not None:
         set_seed(args.seed)
@@ -608,5 +611,15 @@ def training_function(text_encoder, vae, unet, tokenizer, args: Namespace):
         )
         pipeline.save_pretrained(args.output_dir)
 
+    if args.push_to_hub:
+        print("Saving model to hub...")
+        name_of_concept = slugify(args.project_name)
+        save_model_to_hf_hub(
+            model_path=args.output_dir,
+            instance_prompt=args.instance_prompt,
+            name_of_concept=name_of_concept,
+            instance_data_dir=args.instance_data_dir,
+        )
+        print("Done!")
     # TODO: (Promise) Configure the tracker first 19:06 - 18 Mar, 2023
     # accelerator.end_training()

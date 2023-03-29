@@ -39,7 +39,8 @@ from utils.training import (
 
 load_dotenv()
 
-if __name__ == "__main__":
+
+def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--project_name",
@@ -120,14 +121,6 @@ if __name__ == "__main__":
         required=False,
         help="The root directory to save the class images to.",
     )
-    # parser.add_argument(
-    #     "--train_batch_size",
-    #     default=2,
-    #     type=int,
-    #     required=False,
-    #     help="The batch size to use when training. Set to 1 if using prior preservation \
-    #         i.e with_prior_preservation is set to true.",
-    # )
     parser.add_argument(
         "--learning_rate",
         default=2e-06,
@@ -218,9 +211,17 @@ if __name__ == "__main__":
             " and logging the images."
         ),
     )
+    parser.add_argument(
+        "--push_to_hub",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Whether to push the trained model to the hub after training.",
+    )
     args = parser.parse_args()
-    print("Arguments parsed...")
+    return args
 
+
+def main(args):
     if args.with_prior_preservation:
         generate_class_images(
             model_path=args.model_path,
@@ -264,6 +265,7 @@ if __name__ == "__main__":
         validation_prompt=args.validation_prompt,
         num_validation_images=args.num_validation_images,
         validation_steps=args.validation_steps,
+        push_to_hub=args.push_to_hub,
     )
     accelerate.notebook_launcher(
         training_function,
@@ -274,3 +276,8 @@ if __name__ == "__main__":
         if param.grad is not None:
             del param.grad  # free some memory
         torch.cuda.empty_cache()
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    main(args)

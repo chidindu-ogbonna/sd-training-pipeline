@@ -1,7 +1,7 @@
 import os
+from argparse import Namespace
 from pathlib import Path
 from typing import Optional
-from argparse import Namespace
 
 import huggingface_hub
 import torch
@@ -39,7 +39,6 @@ def save_model_to_hf_hub(
 
     repo_id = f"{username}/{slugify(name_of_concept)}"
 
-    readme_text = """Just playing with deliberate"""
     readme_text = f"""---
         license:
         tags:
