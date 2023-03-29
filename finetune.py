@@ -266,6 +266,7 @@ def main(args):
         num_validation_images=args.num_validation_images,
         validation_steps=args.validation_steps,
         push_to_hub=args.push_to_hub,
+        resume_from_checkpoint=args.resume_from_checkpoint
     )
     accelerate.notebook_launcher(
         training_function,
